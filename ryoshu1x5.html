@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang=ja>
+<head>
+	<meta charset=utf-8>
+	<title>領収書5枚綴り</title>
+	<style>
+		td{
+			padding:5px;
+			height:185px;
+			
+			border:1px dotted gray;
+			
+		}
+		td.haifu{
+			width:500px;
+		}
+		td.bkup{
+			width:230px;
+		}
+		
+		textarea#staff_info
+		{
+			resize: none;
+			width:250px;
+			height:70px;
+		}
+		
+		@media print
+		{
+			@page
+			{
+				size:A4 portrait;
+			}
+			
+			div#import_csv
+			{
+				display:none;
+			}
+		}
+	</style>
+	<script>
+		function displayCSV() {
+	    	const fileInput = document.getElementById('csvFile');
+	    	const file = fileInput.files[0];
+
+	    	if (!file) {
+	        	alert('CSVファイルを選択してください。');
+	      		return;
+	    	}
+
+	    	const reader = new FileReader();
+	    	reader.onload = function(e) {
+	      		const csvContent = e.target.result;
+	        	const rows = csvContent.split('\n');
+
+	        	const tableSrcData = [];
+	        	rows.forEach(row => {
+	        		const cells = row.split(',');
+	          
+	          		if(cells.length<8 || String(row)[0]==="#")
+	       			{
+	       				return;
+	       			}
+	       			
+	          		const tmpObj = {};
+	          		cells.forEach((cell, index) => 
+	          		{
+	          			cell = cell.replace(/\r$/, "");
+		          		if(index===0)
+		          		{
+		          			tmpObj.num = cell;
+		          		}
+		          		else if(index===1)
+		          		{
+		          			tmpObj.date = cell;
+		          		}
+		          		else if(index===2)
+		          		{
+		          			tmpObj.name = cell;
+		          		}
+		          		else if(index===8)
+		          		{
+		          			tmpObj.note = cell;
+		          		}
+		          		else if(index<8)
+		          		{
+		          			const tmp_money = String(cell).length<1 ? 0 : Number(cell);
+		          			
+		          			if(index===3)
+		          			{
+			          			tmpObj.money_tax10base = tmp_money;
+			          		}
+			          		else if(index===4)
+		          			{
+			          			tmpObj.money_tax10 = tmp_money;
+			          		}
+			          		else if(index===5)
+		          			{
+			          			tmpObj.money_tax8base = tmp_money;
+			          		}
+			          		else if(index===6)
+		          			{
+			          			tmpObj.money_tax8 = tmp_money;
+			          		}
+			          		else
+			          		{
+			          			tmpObj.money_no_tax = tmp_money;
+			          		}
+		          		}
+		          	});
+	          		tableSrcData.push(tmpObj);
+	          		//console.log(JSON.stringify(tmpObj))
+	        	});
+				putToTable(tableSrcData);
+	     	};
+			
+	    	reader.readAsText(file);
+	    }
+	    
+	    function clearTable()
+	    {
+	    	const target_table = document.getElementsByTagName("table")[0];
+	    	target_table.innerHTML = "";
+	    	const btn = document.getElementById("clear_btn");
+	    	btn.disabled = true;
+	    }
+	    
+	    function putToTable(DataArray)
+	    {
+	    	//const tantou_info = ["株式会社サンプル", "　令和7年度会計担当　経理の人"];
+	    	const textarea_staff_info = document.getElementById("staff_info");
+	    	const tantou_info = textarea_staff_info.value.split("\n");
+		
+			const clear_btn = document.getElementById("clear_btn");
+			
+			let set_data = false;
+			const target_table = document.getElementsByTagName("table")[0];
+			DataArray.forEach((x, index)=>
+			{
+				const td_list = [document.createElement("td"), document.createElement("td")];
+				td_list[0].className = "haifu";
+				td_list[1].className = "bkup";
+				
+				const one_data = x;
+//				if(Number(one_data.money_detail[0])>1)
+//				{
+//					// 10%計算
+//					if(one_data.money_detail.length<2)
+//					{
+//						one_data.money_detail.push(0);
+//					}
+//					one_data.money_detail[1] = Number(one_data.money_detail[0]) * 0.1;
+//				}
+//				if(one_data.money_detail.length>2 && Number(one_data.money_detail[2])>1)
+//				{
+//					// 8%計算
+//					if(one_data.money_detail.length<4)
+//					{
+//						one_data.money_detail.push(0);
+//					}
+//					one_data.money_detail[3] = Number(one_data.money_detail[2]) * 0.08;
+//				}else
+//				{
+//					one_data.money_detail.push(0);
+//				}
+//				if(one_data.money_detail.length<4)
+//				{
+//					one_data.money_detail.push(0);
+//				}
+				
+				// 日付の調整
+				const date_org = one_data.date;
+				const dateObj = new Date(date_org);
+				one_data.date = dateObj.toLocaleDateString('ja-JP-u-ca-japanese', {era:'long', year:'2-digit', month:'2-digit', day:'2-digit'});
+				one_data.date = one_data.date.replace('/', '年');
+				one_data.date = one_data.date.replace('/', '月');
+				one_data.date += '日';
+				// one_data.date = dateObj.toLocaleDateString('ja-JP-u-ca-japanese', {dateStyle:'long'});
+				//(new Intl.DateTimeFormat('ja-JP-u-ca-japanese', {era:'long'}).format(dateObj))
+				
+				if(String(date_org).length===4)
+				{
+					one_data.date = one_data.date.replace(/年.*/, '年');
+					one_data.date += '　 月　 日';
+				}
+				
+				const svgTmp_1 = makeSvgHaifu([500, 180], one_data, tantou_info);
+				td_list[0].appendChild(makeImg(svgTmp_1));
+				
+				const svgTmp_2 = makeSvgBkup([230, 180], one_data, tantou_info);
+				td_list[1].appendChild(makeImg(svgTmp_2));
+				
+				const tr_tag = document.createElement("tr");
+				td_list.forEach((td)=>
+				{
+					tr_tag.appendChild(td);
+
+					if(!set_data)
+					{
+						set_data=true;
+					}
+				});
+				
+				target_table.appendChild(tr_tag);
+				
+				if(set_data && clear_btn.disabled)
+				{
+			    	clear_btn.disabled = false;
+			    }
+			});
+	    }
+	</script>
+</head>
+
+<body>
+	<div id="import_csv">
+		<input type="file" id="csvFile" accept=".csv">
+		<button onclick="displayCSV()">領収書形式に展開</button>
+		　
+		<button onclick="clearTable()" id="clear_btn" disabled>クリア</button>
+  		<br><br>
+  		<div style="display:flex;">
+	  		<div style="padding-left:10px; padding-right:10px; width:50px;">
+	  			<span style="font-size:9pt;">領収書<br>発行者</span>
+	  		</div>
+	  		<textarea id="staff_info"></textarea>
+	  	</div>
+  		<br>
+  	</div>
+  	
+	<table cellspacing="3">
+		<!--<tr>
+			<td class="haifu">
+			</td>
+			<td class="bkup">
+			</td>
+		</tr>
+		<tr>
+			<td class="haifu">
+			</td>
+			<td class="bkup">
+			</td>
+		</tr>
+		<tr>
+			<td class="haifu">
+			</td>
+			<td class="bkup">
+			</td>
+		</tr>
+		<tr>
+			<td class="haifu">
+			</td>
+			<td class="bkup">
+			</td>
+		</tr>
+		<tr>
+			<td class="haifu">
+			</td>
+			<td class="bkup">
+			</td>
+		</tr>-->
+	</table>
+	
+	<script>
+		const textarea_staff_info = document.getElementById("staff_info");
+		textarea_staff_info.addEventListener("input", (e)=>{
+			const lines = e.target.value.split("\n");
+			const max_row = 4;
+			if(lines.length > max_row)
+			{
+				e.target.value = lines.slice(0, max_row).join("\n");
+			}
+		});
+	
+		function MakeSvgElem(elemTypeName)
+		{
+		    const _svgURL = "http://www.w3.org/2000/svg";
+		    return document.createElementNS(_svgURL, elemTypeName);
+		}
+		
+		function DrawSvgElem(svgElemsID, elemTypeName, attrObj, childText, cssObj)
+		{
+		    let svgElemTmp= MakeSvgElem(elemTypeName);
+
+		    if(attrObj!==null){
+		        Object.keys(attrObj).forEach((key)=>{
+		            ChangeSvgAttr( svgElemTmp, {key:key, val:attrObj[key]} );
+		        });
+		    }
+
+		    if(cssObj!==null){
+		        setStyle(cssObj, svgElemTmp);
+		    }
+
+		    if(childText!==null && String(childText).length>0){
+		        svgElemTmp.appendChild(document.createTextNode(childText));
+		    }
+
+		    if(String(svgElemsID).length>0){
+		        svgElemTmp.id=String(svgElemsID);
+		    }
+		    return svgElemTmp;
+		}
+		
+		function ChangeSvgAttr(targetSvgElem, attrKV)
+		{
+	        if(!targetSvgElem || !attrKV.hasOwnProperty("key") || !attrKV.hasOwnProperty("val"))
+	        {
+	            return;
+	        }
+
+	        let key = attrKV.key;
+	        if(key.match(/\_/)){
+	            key = key.replace(/\_/g, "-");
+	        }
+	        targetSvgElem.setAttributeNS( null, key, attrKV.val );
+	  //    console.log("end ChangeAttr");
+	    }
+	    
+	    function setStyleCore(cssObj, callback)
+	    {
+	        Object.keys(cssObj).forEach((key)=>{
+	            let strVal = String(cssObj[key]);
+	            let strKey = String(key);
+	            if(strKey.match(/\_/)){
+	                strKey = strKey.replace(/\_/g, "-");
+	            }
+	            callback(strKey, strVal);
+	        });
+	    }
+	    
+	    function setStyle(cssObj, targetTag)
+	    {
+	        if(targetTag)
+	        {
+	            this.setStyleCore(cssObj, (k,v)=>{
+	                targetTag.style.setProperty(k, v);
+	            });
+	        }
+        }
+        
+        function DrawSvgText(destSvgDom, svgElemsID, attrObj, childText, cssObj)
+	    {
+	    	if(destSvgDom)
+	    	{
+		        const svgTxtElem = DrawSvgElem("", "text", attrObj, childText, cssObj);
+			    destSvgDom.appendChild(svgTxtElem);
+			}
+        }
+        
+        function calcMoneyTotal(money_data)
+        {
+        	const ret = {total:0, tax:[0,0,0,0], all_zero:false};
+        	
+        	const money_detail = [
+				Number(money_data.money_tax10base),
+				Number(money_data.money_tax10),
+				Number(money_data.money_tax8base),
+				Number(money_data.money_tax8),
+			];
+			
+			
+			if( money_data.money_no_tax<1 && money_detail[0]<1 && money_detail[1]<1 && money_detail[2]<1 && money_detail[3]<1 )
+			{
+				ret.all_zero = true;
+			}
+			else if( money_data.money_no_tax>0 && money_detail[0]<1 && money_detail[1]<1 && money_detail[2]<1 && money_detail[3]<1 )
+			{
+				//ret.tax = null;
+			}
+			else
+			{
+				ret.tax = money_detail;
+			}
+			
+			
+			money_detail.forEach(m=>{
+				ret.total += m;
+			});
+			ret.total += Number(money_data.money_no_tax);
+			
+			return ret;
+        }
+
+		function makeSvgHaifu(img_xy, data, tantou_info)
+		{
+			// console.log(data.num);
+			const svgDoc = MakeSvgElem("svg");
+			svgDoc.setAttributeNS(null, "viewBox", "0 0 " + String(img_xy[0]) + " " + String(img_xy[1]));
+			
+			svgDoc.style.width= String(img_xy[0]) + "px";
+			svgDoc.style.height= String(img_xy[1]) + "px";
+			
+			const total_money = calcMoneyTotal(data);
+			
+			const money_detail = total_money.tax;
+			const money_total = total_money.total.toLocaleString();
+			// console.log(JSON.stringify(total_money));
+			
+			const font_name = "Yu Gothic";
+			
+			DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "11pt",
+		            text_anchor: "start",
+		            y: 16, x: 0
+		        }, 
+		        "　　　　　　　　",
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "11pt",
+		            text_anchor: "middle",
+		            y: 16, x: 80
+		        }, 
+		        data.name,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    const svgLineName = DrawSvgElem("", "path", {
+		            stroke: "black",
+		            // stroke_width: "1",
+		           	d: "M5, 22 L160, 22"
+		        }, "", {});
+			svgDoc.appendChild(svgLineName);
+		    
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            dominant_baseline: "central",
+		            font_size: "14pt",
+		            text_anchor: "middle",
+		            //textLength: String(Number(objSvgDraw.SizeX - 30)),
+		            y: 10, x: img_xy[0]/2
+		        }, 
+		        "領収書",
+		        {
+		            font_family: font_name,
+		            font_weight: "bold"
+		        }
+		    );
+		    
+		    let numStr = String(data.num);
+		    if(numStr.length < 1)
+		    {
+		    	numStr = "　　　　　　";
+		    }
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "9pt",
+		            text_anchor: "end",
+		            y: 10, x: img_xy[0]-2
+		        }, 
+		        "　No. " + numStr + "　",
+		        {
+		            font_family: font_name,
+		            text_decoration: "underline"
+		        }
+		    );
+		    
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "end",
+		            y: 30, x: img_xy[0]-2
+		        }, 
+		        data.date,
+		        {
+		            font_family: font_name,
+		        }
+		    );
+		    
+		    
+		    const svgTxtWrapRect = DrawSvgElem("", "rect", {
+		            fill: "#eee",
+		            y: 33,
+		            x: img_xy[0]/2 - 150,
+		            height: 30,
+		            width: 280
+		        }, "", {});
+			svgDoc.appendChild(svgTxtWrapRect);
+
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "16pt",
+		            text_anchor: "middle",
+		            y: 56, x: img_xy[0]/2
+		        }, 
+		        "\\ " + (total_money.all_zero ? "　　　　　　　　" : money_total),
+		        {
+		            font_family: "Meiryo"
+		        }
+		    );
+		    
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "start",
+		            y: 78, x: 100
+		        }, 
+		        "但し",
+		        {
+		            font_family: "Meiryo"
+		        }
+		    );
+		    
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "9pt",
+		            text_anchor: "middle",
+		            y: 78, x: img_xy[0]/2
+		        }, 
+		        data.note,
+		        {
+		            font_family: "Meiryo"
+		        }
+		    );
+		    
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "middle",
+		            y: 93, x: img_xy[0]/2
+		        }, 
+		        "として、上記正に領収いたしました",
+		        {
+		            font_family: "Meiryo"
+		        }
+		    );
+		    
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "start",
+		            y: 110, x: 10
+		        }, 
+		        "内訳",
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    const svgLineTaxDetail = DrawSvgElem("", "path", {
+		            stroke: "black",
+		           	d: "M10, 113 L140, 113"
+		        }, "", {});
+			svgDoc.appendChild(svgLineTaxDetail);
+
+			let money_str = total_money.all_zero ? "" : (money_detail ? money_detail[0].toLocaleString() : "");
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "7pt",
+		            text_anchor: "start",
+		            y: 122, x: 15
+		        }, 
+		        "消費税 税抜 \\ " + money_str,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    money_str = total_money.all_zero ? "" : (money_detail ? money_detail[1].toLocaleString() : "");
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "7pt",
+		            text_anchor: "start",
+		            y: 134, x:  5
+		        }, 
+		        "　１０％ 税額 \\ " + money_str,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+   		    const svgLineTaxP10 = DrawSvgElem("", "path", {
+		            stroke: "black",
+		           	d: "M10, 138 L140, 138"
+		        }, "", {});
+			svgDoc.appendChild(svgLineTaxP10);
+
+			money_str = total_money.all_zero ? "" : (money_detail ? money_detail[2].toLocaleString() : "");
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "7pt",
+		            text_anchor: "start",
+		            y: 148, x: 15
+		        }, 
+		        "消費税 税抜 \\ " + money_str,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    money_str = total_money.all_zero ? "" : (money_detail ? money_detail[3].toLocaleString() : "");
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "7pt",
+		            text_anchor: "start",
+		            y: 160, x:  5
+		        }, 
+		        "　　８％ 税額 \\ " + money_str,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    const svgLineTaxP08 = DrawSvgElem("", "path", {
+		            stroke: "black",
+		           	d: "M10, 164 L140, 164"
+		        }, "", {});
+			svgDoc.appendChild(svgLineTaxP08);
+			
+			money_str = total_money.all_zero ? "" : Number(data.money_no_tax).toLocaleString();
+			DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "7pt",
+		            text_anchor: "start",
+		            y: 174, x:  5
+		        }, 
+		        "　　 非課税分 \\ " + money_str,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    const svgLineNoTax = DrawSvgElem("", "path", {
+		            stroke: "black",
+		           	d: "M10, 179 L140, 179"
+		        }, "", {});
+			svgDoc.appendChild(svgLineNoTax);
+		    
+		    
+		    tantou_info.forEach((x, index)=>{
+		    	let strTmp = x;
+		    
+			    DrawSvgText(svgDoc, "", {
+			            fill: "black",
+			            font_size: "9pt",
+			            text_anchor: "start",
+			            y: 125 + (index * 15), x: img_xy[0]/2-90
+			        },
+			        strTmp,
+			        {
+			            font_family: font_name
+			        }
+			    );
+			});
+			
+		    const svgStampBorder = DrawSvgElem("", "rect", {
+		            fill: "#fff",
+		            y: 70,
+		            x: img_xy[0] - 100,
+		            height: 110,
+		            width: 90,
+		            stroke: "#aaa",
+		            stroke_dasharray:"2,2"
+		        }, "", {});
+			svgDoc.appendChild(svgStampBorder);
+			
+			DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "middle",
+		            y: 100, x: img_xy[0] - 55
+		        }, 
+		        "【収入印紙】",
+		        {
+		            font_family: font_name
+		        }
+		    );
+//		    DrawSvgText(svgDoc, "", {
+//		            fill: "black",
+//		            font_size: "7.5pt",
+//		            text_anchor: "middle",
+//		            y: 115, x: img_xy[0] - 55
+//		        }, 
+//		        "５万円未満の",
+//		        {
+//		            font_family: font_name
+//		        }
+//		    );
+//		    DrawSvgText(svgDoc, "", {
+//		            fill: "black",
+//		            font_size: "7.5pt",
+//		            text_anchor: "middle",
+//		            y: 130, x: img_xy[0] - 55
+//		        }, 
+//		        "場合、または",
+//		        {
+//		            font_family: font_name
+//		        }
+//		    );
+//		    
+//		    DrawSvgText(svgDoc, "", {
+//		            fill: "black",
+//		            font_size: "7.5pt",
+//		            text_anchor: "middle",
+//		            y: 145, x: img_xy[0] - 55
+//		        }, 
+//		        "電子領収書の",
+//		        {
+//		            font_family: font_name
+//		        }
+//		    );
+//
+//		    DrawSvgText(svgDoc, "", {
+//		            fill: "black",
+//		            font_size: "7.5pt",
+//		            text_anchor: "middle",
+//		            y: 160, x: img_xy[0] - 55
+//		        }, 
+//		        "場合、省略可",
+//		        {
+//		            font_family: font_name
+//		        }
+//		    );
+
+		    return svgDoc;
+		}
+		
+		function svgToImg(svgDom, destImg)
+		{
+			const serializer = new XMLSerializer();
+	    	const svgValue = serializer.serializeToString(svgDom);
+
+			destImg.src = (()=>{
+	            const encodedSvg = encodeURIComponent(svgValue);
+	            return 'data:image/svg+xml;charset=utf-8,' + encodedSvg;
+			})();
+		}
+		
+		function makeImg(svgDom)
+		{
+			// img 作成
+			var ret = document.createElement("img");
+		//	ret.width="xxxxpx";
+		//	ret.height="yyypx";
+			ret.style.width="100%";
+			ret.style.height="100%";
+			
+			svgToImg(svgDom, ret);
+			
+			return ret;
+		}
+		
+		
+		function makeSvgBkup(img_xy, data, tantou_info)
+		{
+			const svgDoc = MakeSvgElem("svg");
+			svgDoc.setAttributeNS(null, "viewBox", "0 0 " + String(img_xy[0]) + " " + String(img_xy[1]));
+			
+			svgDoc.style.width= String(img_xy[0]) + "px";
+			svgDoc.style.height= String(img_xy[1]) + "px";
+			
+			const total_money = calcMoneyTotal(data);
+			
+			const money_detail = total_money.tax;
+			const money_total = total_money.total.toLocaleString();
+
+
+			const y_Start = 20;
+			
+			const font_name = "Yu Gothic";
+			
+			let nameStr = String(data.name);
+		    if(nameStr.length < 1)
+		    {
+		    	nameStr = "　　　　　　";
+		    }
+			DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "start",
+		            y: 10, x: 0
+		        }, 
+		        "　"  + nameStr + "　",
+		        {
+		            font_family: font_name,
+		            text_decoration: "underline"
+		        }
+		    );
+		    
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "middle",
+		            dominant_baseline: "central",
+		            y: 5, x: img_xy[0]/2
+		        }, 
+		        "　領収書（控）",
+		        {
+		            font_family: font_name,
+		            font_weight: "bold"
+		        }
+		    );
+		    
+		    const post_str = Number(data.money_no_tax) < 1 ? "（非課税分無し）" : " [ 内 非課税：\\ " + Number(data.money_no_tax).toLocaleString() + " ]"
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "start",
+		            y: y_Start + 15, x: 5
+		        }, 
+		        "金額：\\ " + (total_money.all_zero ? "" : (money_total + post_str)),
+		        {
+		            font_family: font_name,
+		            font_weight: "bold"
+		        }
+		    );
+		    
+		    let money_str = total_money.all_zero ? "" : (money_detail ? money_detail[0].toLocaleString() : "");
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "start",
+		            y: y_Start + 30, x: 5
+		        }, 
+		        "内／消費税抜10%：\\ " + money_str,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    money_str = total_money.all_zero ? "" : (money_detail ? money_detail[1].toLocaleString() : "");
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "start",
+		            y: y_Start + 45, x: 5
+		        }, 
+		        "　　　　税額10%：\\ " + money_str,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    money_str = total_money.all_zero ? "" : (money_detail ? money_detail[2].toLocaleString() : "");
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "start",
+		            y: y_Start + 60, x: 5
+		        }, 
+		        "　　　　税抜８%：\\ " + money_str,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    money_str = total_money.all_zero ? "" : (money_detail ? money_detail[3].toLocaleString() : "");
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "start",
+		            y: y_Start + 75, x: 5
+		        }, 
+		        "　　　　税額８%：\\ " + money_str,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    let noteStr = String(data.note);
+		    if(noteStr.length > 0)
+		    {
+		    	noteStr += " として";
+		    }
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "start",
+		            y: y_Start + 95, x: 5
+		        }, 
+		        "但書："  + noteStr,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    tantou_info.forEach((x, index)=>{
+		    	let strTmp = "";
+		    	if(index===0)
+		    	{
+		    		strTmp = "受領者：" + x;
+		    	}
+		    	else if(index<=2)
+		    	{
+		    		strTmp = "　　　　" + x
+		    		if(tantou_info.length>3 && index===2)
+		    		{
+		    			strTmp += "…";
+		    		}
+		    	}
+		    	else
+		    	{
+		    		return;
+		    	}
+		    
+			    DrawSvgText(svgDoc, "", {
+			            fill: "black",
+			            font_size: "7pt",
+			            text_anchor: "start",
+			            y: y_Start + 113 + (index * 15), x: 5
+			        },
+			        strTmp,
+			        {
+			            font_family: font_name
+			        }
+			    );
+			});
+		    
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "start",
+		            y: img_xy[1], x: 5
+		        }, 
+		        data.date,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    let numStr = String(data.num);
+		    if(numStr.length < 1)
+		    {
+		    	numStr = "　　　　　　　";
+		    }
+		    DrawSvgText(svgDoc, "", {
+		            fill: "black",
+		            font_size: "8pt",
+		            text_anchor: "end",
+		            y: img_xy[1], x: img_xy[0]-5
+		        }, 
+		        "No. " + numStr,
+		        {
+		            font_family: font_name
+		        }
+		    );
+		    
+		    return svgDoc;
+		}
+		
+//		const dataAry = [
+//			 {num:"202500000001", date:"2025.03.02", name:"田中太郎", money_tax10base:3000, money_tax10:300, note:"書籍購入代"}
+//			,{num:"202500000002", date:"2025.03.10", name:"斎藤太郎", money_tax10base:2000, money_tax10:200, money_no_tax:140, note:"交通費"}
+//			,{num:"202500000003", date:"2025.03.13", name:"佐藤太郎", money_tax8base:1000, money_tax8:80, note:"食事代"}
+//			,{num:"202500000004", date:"2025.03.15", name:"山田太郎", money_tax10base:500, money_tax10:50, note:"備品代"}
+//			,{num:"202500000005", date:"2025.03.17", name:"渡辺太郎", money_tax10base:9800, money_tax10:980, note:"事務用品代"}
+//			,{num:"202500000002", date:"2025.03.11", name:"斎藤太郎", money_tax10base:2000, money_tax10:200, note:"交通費"}
+//		];
+		
+//		putToTable(dataAry);
+		
+	</script>
+</body>
+
+</html>
