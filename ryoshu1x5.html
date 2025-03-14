@@ -491,7 +491,7 @@
 		            text_anchor: "middle",
 		            y: 56, x: img_xy[0]/2
 		        }, 
-		        "&yen; " + (total_money.all_zero ? "　　　　　　　　" : money_total),
+		        "￥ " + (total_money.all_zero ? "　　　　　　　　" : money_total),
 		        {
 		            font_family: "Meiryo"
 		        }
@@ -558,7 +558,7 @@
 		            text_anchor: "start",
 		            y: 122, x: 15
 		        }, 
-		        "消費税 税抜 &yen; " + money_str,
+		        "消費税 税抜 ￥ " + money_str,
 		        {
 		            font_family: font_name
 		        }
@@ -571,7 +571,7 @@
 		            text_anchor: "start",
 		            y: 134, x:  5
 		        }, 
-		        "　１０％ 税額 &yen; " + money_str,
+		        "　１０％ 税額 ￥ " + money_str,
 		        {
 		            font_family: font_name
 		        }
@@ -590,7 +590,7 @@
 		            text_anchor: "start",
 		            y: 148, x: 15
 		        }, 
-		        "消費税 税抜 &yen; " + money_str,
+		        "消費税 税抜 ￥ " + money_str,
 		        {
 		            font_family: font_name
 		        }
@@ -603,7 +603,7 @@
 		            text_anchor: "start",
 		            y: 160, x:  5
 		        }, 
-		        "　　８％ 税額 &yen; " + money_str,
+		        "　　８％ 税額 ￥ " + money_str,
 		        {
 		            font_family: font_name
 		        }
@@ -622,7 +622,7 @@
 		            text_anchor: "start",
 		            y: 174, x:  5
 		        }, 
-		        "　　 非課税分 &yen; " + money_str,
+		        "　　 非課税分 ￥ " + money_str,
 		        {
 		            font_family: font_name
 		        }
@@ -799,14 +799,14 @@
 		        }
 		    );
 		    
-		    const post_str = Number(data.money_no_tax) < 1 ? "（非課税分無し）" : " [ 内 非課税：&yen; " + Number(data.money_no_tax).toLocaleString() + " ]"
+		    const post_str = Number(data.money_no_tax) < 1 ? "（非課税分無し）" : " [ 内 非課税：￥ " + Number(data.money_no_tax).toLocaleString() + " ]"
 		    DrawSvgText(svgDoc, "", {
 		            fill: "black",
 		            font_size: "8pt",
 		            text_anchor: "start",
 		            y: y_Start + 15, x: 5
 		        }, 
-		        "金額：&yen; " + (total_money.all_zero ? "" : (money_total + post_str)),
+		        "金額：￥ " + (total_money.all_zero ? "" : (money_total + post_str)),
 		        {
 		            font_family: font_name,
 		            font_weight: "bold"
@@ -820,7 +820,7 @@
 		            text_anchor: "start",
 		            y: y_Start + 30, x: 5
 		        }, 
-		        "内／消費税抜10%：&yen; " + money_str,
+		        "内／消費税抜10%：￥ " + money_str,
 		        {
 		            font_family: font_name
 		        }
@@ -833,7 +833,7 @@
 		            text_anchor: "start",
 		            y: y_Start + 45, x: 5
 		        }, 
-		        "　　　　税額10%：&yen; " + money_str,
+		        "　　　　税額10%：￥ " + money_str,
 		        {
 		            font_family: font_name
 		        }
@@ -846,7 +846,7 @@
 		            text_anchor: "start",
 		            y: y_Start + 60, x: 5
 		        }, 
-		        "　　　　税抜８%：&yen; " + money_str,
+		        "　　　　税抜８%：￥ " + money_str,
 		        {
 		            font_family: font_name
 		        }
@@ -859,7 +859,7 @@
 		            text_anchor: "start",
 		            y: y_Start + 75, x: 5
 		        }, 
-		        "　　　　税額８%：&yen; " + money_str,
+		        "　　　　税額８%：￥ " + money_str,
 		        {
 		            font_family: font_name
 		        }
