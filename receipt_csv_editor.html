@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>領収書用データ作成</title>
+<style>
+  body {
+   font-family: sans-serif; margin: 20px;
+   user-select: none;
+   -webkit-user-select: none;
+   -ms-user-select: none;
+  }
+  h1 { margin-bottom: 10px; }
+  button { margin: 2px; }
+  table { border-collapse: collapse; margin-top: 10px; width: 100%; }
+  th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
+  th { background: #f0f0f0; font-size:9pt; }
+  .right { text-align: right; }
+  dialog { border: none; padding: 20px; border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,.3); }
+  dialog form { display: grid; grid-template-columns: 150px 1fr; gap: 6px 10px; }
+  dialog label { text-align: right; }
+  dialog .buttons { grid-column: 1 / 3; text-align: right; margin-top: 10px; }
+  input[type="text"], input[type="date"], input[type="number"] { width: 100%; box-sizing: border-box; }
+  
+  dialog form#csvForm { display: block; }
+  span#msg {
+  	color:#f00;
+  	font-size:10pt;
+  }
+  
+  .radio-block {
+	  text-align: right;
+	}
+
+  tr.selected {
+    background-color: #d0ebff;
+  }
+
+  input, textarea {
+    user-select: text;
+  }
+  
+  tr.dragging {
+    opacity: 0.4;
+  }
+  
+  tr.drop-target-top {
+	  border-top: 3px solid #007bff;
+	}
+
+	tr.drop-target-bottom {
+	  border-bottom: 3px solid #007bff;
+	}
+
+</style>
+</head>
+<body>
+<dialog id="csvDialog">
+  <form method="dialog" id="csvForm">
+　　
+    <p>表の全データをCSVファイルとして保存します</p>
+
+    <label>CSV File Name: </label>
+    <p>
+	<input type="text" id="csvFileName" style="width:85%;" placeholder="拡張子を除くファイル名" required> .csv
+    </p>
+    <br>
+
+    <div class="buttons" style="margin-top:10px; text-align:right;">
+      <button type="button" id="csvCancelBtn">キャンセル</button>
+      <button type="submit" id="csvOkBtn" disabled>ダウンロード</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="deleteSelectedDialog">
+  <p>選択されているすべての行を削除します。よろしいですか？</p>
+  <div style="text-align:right; margin-top:10px;">
+    <button id="deleteSelectedCancelBtn">キャンセル</button>
+    <button id="deleteSelectedOkBtn">削除する</button>
+  </div>
+</dialog>
+
+<h3>領収書用データ作成</h3>
+
+<div>
+  <button id="addRowBtn" title="末尾に行を追加">行追加</button>
+  <button id="editRowBtn" title="選択行のデータを編集" disabled>編集</button>
+  <button id="deleteSelectedBtn" title="選択行を削除">削除</button>
+  <button id="copySelectedBtn" title="選択行を複製">複製＆末尾に挿入</button>
+  
+  <button id="addSamaBtn" title="宛名に『 様』を追加">「 様」を追加</button>
+
+  <button id="undoBtn">元に戻す</button>
+  <button id="redoBtn">やり直し</button>
+  <button id="loadCsvBtn" title="表の行数が0になったときのみ有効">CSV読み込み</button>
+  <button id="downloadCsvBtn" title="表の全データをCSVファイルとして保存">download (CSV)</button>
+  <input type="file" id="csvFileInput" accept=".csv" style="display:none;">
+</div>
+
+<div id="selectedCountDisplay" style="margin-top:6px; font-size:12px; color:#333;">
+  選択中の行数: 0
+</div>
+
+<table id="dataTable">
+  <thead>
+    <tr>
+      <th style="width:20px;"><input type="checkbox" id="checkAll"></th>
+      <th>#</th>
+      <th>管理番号</th>
+      <th>日付</th>
+      <th>宛名</th>
+      <th>消費税10％<br>税抜額</th>
+      <th>10％税額</th>
+      <th>消費税8％<br>税抜額</th>
+      <th>8％税額</th>
+      <th>非課税額</th>
+      <th>但書</th>
+      <!--th style="color:gray">行削除</th-->
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<dialog id="rowDialog">
+  <form method="dialog" id="rowForm">
+    <label for="mngNo">管理番号</label>
+    <input type="text" id="mngNo">
+
+	<span class="radio-block">
+	<input type="radio" id="date_0" name="dateInput" value="0" checked>
+    <label for="date_0">　　年月日</label>
+   	</span>
+
+    <input type="date" id="date_0_input">
+    
+  	<span class="radio-block">
+    <input type="radio" id="date_1" name="dateInput" value="1">
+    <label for="date_1">西暦年のみ</label>
+	</span>
+    <input type="number" id="date_1_input" min="0" placeholder="2019" disabled>
+    
+<!--	<span class="radio-block">
+    <input type="radio" id="date_2" name="dateInput" value="2">
+    <label for="date_2">西暦年/月</label>
+	</span>
+    <input type="month" id="date_2_input" disabled>
+-->
+
+    <label for="toName">宛名</label>
+    <input type="text" id="toName">
+
+    <label for="amount1">消費税10％税抜額￥</label>
+    <input type="number" id="amount1" step="1">
+
+    <label for="amount2">消費税8％税抜額￥</label>
+    <input type="number" id="amount2" step="1">
+
+    <label for="amount2">非課税額￥</label>
+    <input type="number" id="amount3" step="1">
+
+    <label for="note">但書</label>
+    <input type="text" id="note">
+
+    <div class="buttons">
+    　<span id="msg"></span>
+      <button type="button" id="cancelDialogBtn">キャンセル</button>
+      <button type="submit" id="okDialogBtn">確定</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+
+  let lastClickedRowIndex = null;
+  
+  let dragStartIndex = null;
+  let dragRange = null; // {start, end}
+
+  const tableBody = document.querySelector('#dataTable tbody');
+  const addRowBtn = document.getElementById('addRowBtn');
+  const editRowBtn = document.getElementById('editRowBtn');
+  const undoBtn = document.getElementById('undoBtn');
+  const redoBtn = document.getElementById('redoBtn');
+  const loadCsvBtn = document.getElementById('loadCsvBtn');
+  const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+  const csvFileInput = document.getElementById('csvFileInput');
+  const addSamaBtn = document.getElementById('addSamaBtn');
+
+　const radioDate0 = document.getElementById('date_0');
+　const radioDate1 = document.getElementById('date_1');
+//　const radioDate2 = document.getElementById('date_2');
+
+  const rowDialog = document.getElementById('rowDialog');
+  const rowForm = document.getElementById('rowForm');
+  const cancelDialogBtn = document.getElementById('cancelDialogBtn');
+  
+  
+const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+const deleteSelectedDialog = document.getElementById('deleteSelectedDialog');
+const deleteSelectedCancelBtn = document.getElementById('deleteSelectedCancelBtn');
+const deleteSelectedOkBtn = document.getElementById('deleteSelectedOkBtn');
+
+const checkAll = document.getElementById('checkAll');
+
+const copySelectedBtn = document.getElementById('copySelectedBtn');
+
+
+  let data = []; // {mngNo, date, toName, amount1, amount2, amount3, note}
+  let undoStack = [];
+  let redoStack = [];
+
+  let editingIndex = null;   // 編集中の行番号（新規追加時は null）
+
+  function cloneData(d) {
+    return d.map(r => ({...r}));
+  }
+
+  function pushUndo() {
+    undoStack.push(cloneData(data));
+    if (undoStack.length > 100) undoStack.shift();
+    redoStack = [];
+    updateUndoRedoButtons();
+  }
+
+  function updateUndoRedoButtons() {
+    undoBtn.disabled = undoStack.length === 0;
+    redoBtn.disabled = redoStack.length === 0;
+    loadCsvBtn.disabled = data.length !== 0;
+    downloadCsvBtn.disabled = data.length === 0;
+    addSamaBtn.disabled = data.length === 0;
+    checkAll.disabled = data.length === 0;
+    
+    // 選択行が 0 のときは削除ボタンを無効化
+  const anyChecked = document.querySelector('.rowCheck:checked') !== null;
+  deleteSelectedBtn.disabled = !anyChecked;
+
+	copySelectedBtn.disabled = !anyChecked;
+
+	const checkedRows = document.querySelectorAll('.rowCheck:checked');
+	editRowBtn.disabled = (checkedRows.length !== 1);
+
+    checkAll.checked = (document.querySelectorAll('.rowCheck:checked').length === data.length && data.length > 0);
+    
+    // 選択行数の表示更新
+	const selectedCount = document.querySelectorAll('.rowCheck:checked').length;
+	document.getElementById('selectedCountDisplay').textContent =
+	  `選択中の行数: ${selectedCount}`;
+  }
+
+  function renderTable() {
+    tableBody.innerHTML = '';
+    data.forEach((row, index) => {
+
+      const tr = document.createElement('tr');
+
+      tr.draggable = true;
+
+		// --- ドラッグ開始 ---
+		tr.addEventListener('dragstart', (e) => {
+		  const checks = document.querySelectorAll('.rowCheck');
+		  const rowIndex = index;
+
+		  const sel = getSelectionState();
+
+		  // 何も選択されていない → ドラッグ禁止
+		  if (sel.count === 0) {
+		    e.preventDefault();
+		    return;
+		  }
+
+		  // 非連続で複数選択されている → ドラッグ禁止
+		  if (sel.count > 1 && !sel.continuous) {
+		    e.preventDefault();
+		    return;
+		  }
+
+		  // 1行だけ選択 → その行だけドラッグ
+		  if (sel.count === 1) {
+		    // その1行が今ドラッグしようとしている行でなければ禁止
+		    if (!checks[rowIndex].checked) {
+		      e.preventDefault();
+		      return;
+		    }
+		    dragRange = { start: rowIndex, end: rowIndex };
+		  }
+		  // 複数行かつ連続 → その範囲のみドラッグ可能
+		  else {
+		    // 選択範囲外の行からドラッグ開始しようとしたら禁止
+		    if (rowIndex < sel.start || rowIndex > sel.end) {
+		      e.preventDefault();
+		      return;
+		    }
+		    dragRange = { start: sel.start, end: sel.end };
+		  }
+
+		  dragStartIndex = rowIndex;
+		  tr.classList.add('dragging');
+		});
+
+		// --- ドラッグ終了 ---
+		tr.addEventListener('dragend', () => {
+		  tr.classList.remove('dragging');
+		});
+		
+		// --- ドラッグオーバー（ドロップ可能にする） ---
+		tr.addEventListener('dragover', (e) => {
+		  e.preventDefault();
+		  if (!dragRange) return;
+
+		  clearDropGuides();
+
+		  const targetIndex = index;
+
+		  // 選択範囲の中にはドロップ不可
+		  if (targetIndex >= dragRange.start && targetIndex <= dragRange.end) return;
+
+		  const rect = tr.getBoundingClientRect();
+		  const offset = e.clientY - rect.top;
+
+		  if (offset < rect.height / 2) {
+		    tr.classList.add('drop-target-top');
+		  } else {
+		    tr.classList.add('drop-target-bottom');
+		  }
+		});
+
+		// --- ドロップ ---
+		tr.addEventListener('drop', (e) => {
+		  e.preventDefault();
+
+		  if (!dragRange) return;
+
+		  const targetIndex = index;
+
+		  // ドロップ先が選択範囲の中なら無視
+		  if (targetIndex >= dragRange.start && targetIndex <= dragRange.end) return;
+
+		  pushUndo();
+
+		  const movingRows = data.slice(dragRange.start, dragRange.end + 1);
+
+		  // 元の位置から削除
+		  data.splice(dragRange.start, movingRows.length);
+
+		  // 新しい挿入位置を調整
+		  let insertIndex = targetIndex;
+		  if (targetIndex > dragRange.start) {
+		    insertIndex = targetIndex - movingRows.length + 1;
+		  }
+
+		  // 挿入
+		  data.splice(insertIndex, 0, ...movingRows);
+
+		  renderTable();
+		  updateUndoRedoButtons();
+
+		  dragRange = null;
+		  
+		  clearDropGuides();
+		});
+		
+		
+		// dragleave
+		tr.addEventListener('dragleave', () => {
+		  clearDropGuides();
+		});
+
+
+      // チェックボックス列
+		const tdCheck = document.createElement('td');
+		const cb = document.createElement('input');
+		cb.type = 'checkbox';
+		cb.className = 'rowCheck';
+		
+		cb.addEventListener('change', () => {
+                  if (cb.checked) {
+                      tr.classList.add('selected');
+                  } else {
+                      tr.classList.remove('selected');
+                  }
+
+		  updateUndoRedoButtons();
+		});
+		
+		tdCheck.appendChild(cb);
+		tr.appendChild(tdCheck);
+
+      // 行クリックで選択トグル
+      tr.addEventListener('click', (e) => {
+        if (e.target.type === 'checkbox') return;
+
+        const rowIndex = index;
+
+        // --- Shift+クリック（範囲選択） ---
+        if (e.shiftKey && lastClickedRowIndex !== null) {
+          const start = Math.min(lastClickedRowIndex, rowIndex);
+          const end = Math.max(lastClickedRowIndex, rowIndex);
+
+          for (let i = start; i <= end; i++) {
+            const cb2 = tableBody.querySelectorAll('.rowCheck')[i];
+            const tr2 = cb2.closest('tr');
+            cb2.checked = true;
+            tr2.classList.add('selected');
+          }
+          updateUndoRedoButtons();
+          return;
+        }
+
+        // --- 通常クリック（単体トグル） ---
+        cb.checked = !cb.checked;
+
+        if (cb.checked) {
+          tr.classList.add('selected');
+        } else {
+          tr.classList.remove('selected');
+        }
+
+        lastClickedRowIndex = rowIndex;
+        updateUndoRedoButtons();
+      });
+
+		
+
+      const tdIndex = document.createElement('td');
+      tdIndex.textContent = index + 1;
+      tdIndex.className = 'right';
+      tr.appendChild(tdIndex);
+
+      const tdMng = document.createElement('td');
+      tdMng.textContent = row.mngNo || '';
+      tr.appendChild(tdMng);
+
+      const tdDate = document.createElement('td');
+      tdDate.textContent = row.date || '';
+      tr.appendChild(tdDate);
+
+      const tdName = document.createElement('td');
+      tdName.textContent = row.toName || '';
+      tr.appendChild(tdName);
+
+      const tdAmt1 = document.createElement('td');
+      tdAmt1.textContent = row.amount1;
+      tdAmt1.className = 'right';
+      tr.appendChild(tdAmt1);
+      
+      const tdAmt1_x010 = document.createElement('td');
+      tdAmt1_x010.textContent = row.amount1*0.1;
+      tdAmt1_x010.className = 'right';
+      tr.appendChild(tdAmt1_x010);
+
+      const tdAmt2 = document.createElement('td');
+      tdAmt2.textContent = row.amount2;
+      tdAmt2.className = 'right';
+      tr.appendChild(tdAmt2);
+
+      const tdAmt2_x008 = document.createElement('td');
+      tdAmt2_x008.textContent = row.amount2*0.08;
+      tdAmt2_x008.className = 'right';
+      tr.appendChild(tdAmt2_x008);
+      
+      const tdAmt3 = document.createElement('td');
+      tdAmt3.textContent = row.amount3;
+      tdAmt3.className = 'right';
+      tr.appendChild(tdAmt3);
+
+      const tdNote = document.createElement('td');
+      tdNote.textContent = row.note || '';
+      tr.appendChild(tdNote);
+      updateUndoRedoButtons();
+      
+      checkAll.checked = false;
+
+//      const tdDel = document.createElement('td');
+//      const delBtn = document.createElement('button');
+//      delBtn.textContent = '削除';
+//      delBtn.addEventListener('click', () => {
+//        pushUndo();
+//        data.splice(index, 1);
+//        renderTable();
+//        updateUndoRedoButtons();
+//     });
+//      tdDel.appendChild(delBtn);
+//      tr.appendChild(tdDel);
+
+      tableBody.appendChild(tr);
+    });
+  }
+  
+  const funcRadioDate0_OnChange = function(){
+    const r0 = document.getElementById('date_0_input');
+    r0.disabled = false;
+    
+    const r1 = document.getElementById('date_1_input');
+    r1.disabled = true;
+    
+//    const r2 = document.getElementById('date_2_input');
+//    r2.disabled = true;
+  }
+  
+  radioDate0.addEventListener('change', () => {
+    funcRadioDate0_OnChange();
+  });
+  
+  radioDate1.addEventListener('change', () => {
+    const r0 = document.getElementById('date_0_input');
+    r0.disabled = true;
+    
+    const r1 = document.getElementById('date_1_input');
+    r1.disabled = false;
+    
+//    const r2 = document.getElementById('date_2_input');
+//    r2.disabled = true;
+  });
+  
+//  radioDate2.addEventListener('change', () => {
+//    const r0 = document.getElementById('date_0_input');
+//    r0.disabled = true;
+//    
+//    const r1 = document.getElementById('date_1_input');
+//    r1.disabled = true;
+//    
+//    const r2 = document.getElementById('date_2_input');
+//    r2.disabled = false;
+//  });
+
+  addRowBtn.addEventListener('click', () => {
+    rowForm.reset();
+    funcRadioDate0_OnChange();
+    document.getElementById('msg').textContent = "";
+    rowDialog.showModal();
+    updateUndoRedoButtons();
+  });
+
+  cancelDialogBtn.addEventListener('click', () => {
+	editingIndex = null;
+    rowDialog.close();
+  });
+
+//  rowForm.addEventListener('submit', (e) => {
+//    e.preventDefault();
+//    
+//    let dateVal = String(document.getElementById('date_0_input').value).replace(/\-/g,".");
+//    if(radioDate1.checked)
+//    {
+//    	dateVal = String(document.getElementById('date_1_input').value);
+//    }
+////    if(radioDate2.checked)
+////    {
+////    	dateVal = String(document.getElementById('date_2_input').value).replace(/\-/g,".");
+////    }
+//    if(String(dateVal).length===0){
+//   	document.getElementById('msg').textContent = "日付または年が未入力です　　";
+//    	return false;
+//    }
+//    
+//    const newRow = {
+//      mngNo: document.getElementById('mngNo').value.trim(),
+//      date: dateVal,
+//      toName: document.getElementById('toName').value.trim(),
+//      amount1: document.getElementById('amount1').value.trim(),
+//      amount2: document.getElementById('amount2').value.trim(),
+//      amount3: document.getElementById('amount3').value.trim(),
+//      note: document.getElementById('note').value.trim()
+//    };
+//    pushUndo();
+//    data.push(newRow);
+//    renderTable();
+//    rowDialog.close();
+//  });
+
+rowForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+
+  let dateVal = String(document.getElementById('date_0_input').value).replace(/\-/g,".");
+  if (radioDate1.checked) {
+    dateVal = String(document.getElementById('date_1_input').value);
+  }
+
+  if (String(dateVal).length === 0) {
+    document.getElementById('msg').textContent = "日付または年が未入力です　　";
+    return false;
+  }
+
+  const newRow = {
+    mngNo: document.getElementById('mngNo').value.trim(),
+    date: dateVal,
+    toName: document.getElementById('toName').value.trim(),
+    amount1: document.getElementById('amount1').value.trim(),
+    amount2: document.getElementById('amount2').value.trim(),
+    amount3: document.getElementById('amount3').value.trim(),
+    note: document.getElementById('note').value.trim()
+  };
+
+  pushUndo();
+
+  if (editingIndex === null) {
+    // 新規追加
+    data.push(newRow);
+  } else {
+    // 編集
+    data[editingIndex] = newRow;
+  }
+
+  editingIndex = null;  // リセット
+  renderTable();
+  rowDialog.close();
+});
+
+  undoBtn.addEventListener('click', () => {
+    if (undoStack.length === 0) return;
+    redoStack.push(cloneData(data));
+    data = undoStack.pop();
+    renderTable();
+    updateUndoRedoButtons();
+  });
+
+  redoBtn.addEventListener('click', () => {
+    if (redoStack.length === 0) return;
+    undoStack.push(cloneData(data));
+    data = redoStack.pop();
+    renderTable();
+  });
+
+  loadCsvBtn.addEventListener('click', () => {
+    csvFileInput.value = '';
+    csvFileInput.click();
+    updateUndoRedoButtons();
+  });
+
+  csvFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result;
+      const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim() !== '');
+      if (lines.length === 0) return;
+
+      // 1行目はヘッダ (#管理番号,日付,宛名,金額１,金額１x0.1,金額２,金額２x0.08,金額３,但書 などを想定)
+      const header = lines[0].split(',');
+      // 先頭の#を削る
+      if (header[0].startsWith('#')) header[0] = header[0].substring(1);
+
+      const newData = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        if (cols.length === 1 && cols[0].trim() === '') continue;
+        if (String(cols[3]).length === 0) cols[4]='0';
+        if (String(cols[5]).length === 0) cols[6]='0';
+        newData.push({
+          mngNo: cols[0] || '',
+          date: cols[1] || '',
+          toName: cols[2] || '',
+          amount1: cols[3] || '',
+          amount1_x010: cols[4] || '',
+          amount2: cols[5] || '',
+          amount2_x008: cols[6] || '',
+          amount3: cols[7] || '',
+          note: cols[8] || ''
+        });
+      }
+      pushUndo();
+      data = newData;
+      renderTable();
+    };
+    reader.readAsText(file, 'UTF-8');
+  });
+
+//  downloadCsvBtn.addEventListener('click', () => {
+//    const header = ['#管理番号','日付','宛名','金額１','金額１_x010','金額２','金額２_x008','金額３','但書'];
+//    const lines = [];
+//    lines.push(header.join(','));
+//    data.forEach(row => {
+//		if(String(row.amount1).length===0) row.amount1_x010 = '';
+//  	if(String(row.amount2).length===0) row.amount2_x008 = '';
+//      const cols = [
+//        row.mngNo || '',
+//        row.date || '',
+//        row.toName || '',
+//        row.amount1 || '',
+//        row.amount1_x010 || '',
+//        row.amount2 || '',
+//        row.amount2_x008 || '',
+//        row.amount3 || ''
+//        row.note || ''
+//      ];
+//      lines.push(cols.map(v => v.replace(/"/g, '""')).join(','));
+//    });
+//    const csvContent = lines.join('\n');
+//    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+//    const url = URL.createObjectURL(blob);
+//    const a = document.createElement('a');
+//    a.href = url;
+//    a.download = 'data.csv';
+//    document.body.appendChild(a);
+//    a.click();
+//    document.body.removeChild(a);
+//    URL.revokeObjectURL(url);
+//  });
+
+  // 初期状態
+  updateUndoRedoButtons();
+  renderTable();
+
+
+
+// CSVダウンロード用ダイアログ
+const csvDialog = document.getElementById('csvDialog');
+const csvForm = document.getElementById('csvForm');
+const csvFileNameInput = document.getElementById('csvFileName');
+const csvCancelBtn = document.getElementById('csvCancelBtn');
+const csvOkBtn = document.getElementById('csvOkBtn');
+
+// ダウンロードボタン押下 → ダイアログ表示
+downloadCsvBtn.addEventListener('click', () => {
+  csvForm.reset();
+  csvOkBtn.disabled = true;
+  csvDialog.showModal();
+});
+
+// 入力チェック（未入力ならダウンロード不可）
+csvFileNameInput.addEventListener('input', () => {
+  csvOkBtn.disabled = csvFileNameInput.value.trim() === '';
+});
+
+// キャンセル
+csvCancelBtn.addEventListener('click', () => {
+  csvDialog.close();
+});
+
+// ダウンロード確定
+csvForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+
+  let fileName = csvFileNameInput.value.trim();
+  if (!fileName) return;
+  fileName += '.csv';
+  
+  // CSV生成
+  //const header = ['#管理番号','日付','金額１','金額１_x010','金額２','金額２_x008','金額３','但書'];
+  const table = document.getElementById("dataTable");
+  const headers = Array.from(table.querySelectorAll("th")).map(th => th.textContent.trim());
+  let header = ['#'+headers[2]];
+  header.push(...headers.slice(3));
+
+
+  const lines = [];
+  lines.push(header.join(','));
+
+  data.forEach(row => {
+  	if(String(row.amount1).length===0) row.amount1_x010 = '';
+  	if(String(row.amount2).length===0) row.amount2_x008 = '';
+  
+    const cols = [
+      row.mngNo || '',
+      row.date || '',
+      row.toName || '',
+      row.amount1 || '',
+      row.amount1_x010 || '',
+      row.amount2 || '',
+      row.amount2_x008 || '',
+      row.amount3 || '',
+      row.note || ''
+    ];
+    lines.push(cols.map(v => v.replace(/"/g, '""')).join(','));
+  });
+
+  const csvContent = lines.join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  csvDialog.close();
+});
+
+
+
+
+// ボタン押下 → ダイアログ表示
+deleteSelectedBtn.addEventListener('click', () => {
+  const rowChecks = document.querySelectorAll('.rowCheck:checked');
+  if (rowChecks.length === 0) return; // 念のため
+  deleteSelectedDialog.showModal();
+});
+
+// キャンセル
+deleteSelectedCancelBtn.addEventListener('click', () => {
+  deleteSelectedDialog.close();
+});
+
+// OK → 選択行削除
+deleteSelectedOkBtn.addEventListener('click', () => {
+  const rowChecks = document.querySelectorAll('.rowCheck');
+  pushUndo();
+
+  // 上から削除すると index がずれるので逆順で削除
+  for (let i = rowChecks.length - 1; i >= 0; i--) {
+    if (rowChecks[i].checked) {
+      data.splice(i, 1);
+    }
+  }
+
+  renderTable();
+  updateUndoRedoButtons();
+  deleteSelectedDialog.close();
+});
+
+// ヘッダーのチェック → 全行トグル
+//checkAll.addEventListener('change', () => {
+//  const rowChecks = document.querySelectorAll('.rowCheck');
+//  rowChecks.forEach(cb => cb.checked = checkAll.checked);
+//  updateUndoRedoButtons();
+//});
+checkAll.addEventListener('change', () => {
+  const rowChecks = document.querySelectorAll('.rowCheck');
+  const selectedCount = document.querySelectorAll('.rowCheck:checked').length;
+
+  if (selectedCount > 0) {
+    // すでに選択行がある → 全解除
+    rowChecks.forEach(cb => {
+      cb.checked = false;
+      cb.closest('tr').classList.remove('selected');
+    });
+    checkAll.checked = false; // 見た目もOFFに戻す
+  } else {
+    // 選択行が0 → 全選択
+    rowChecks.forEach(cb => {
+      cb.checked = true;
+      cb.closest('tr').classList.add('selected');
+    });
+    checkAll.checked = true;
+  }
+
+  updateUndoRedoButtons();
+});
+
+copySelectedBtn.addEventListener('click', () => {
+  const rowChecks = document.querySelectorAll('.rowCheck:checked');
+  if (rowChecks.length === 0) return;
+
+  pushUndo();
+
+  // チェックされている行を順番にコピー
+  rowChecks.forEach((cb, index) => {
+    const rowIndex = Array.from(document.querySelectorAll('.rowCheck')).indexOf(cb);
+    const original = data[rowIndex];
+
+    // ディープコピーして末尾に追加
+    const copied = { ...original };
+    data.push(copied);
+  });
+
+  renderTable();
+  updateUndoRedoButtons();
+});
+
+editRowBtn.addEventListener('click', () => {
+  const checked = document.querySelectorAll('.rowCheck:checked');
+  if (checked.length !== 1) return;
+
+  // 行番号を取得
+  editingIndex = Array.from(document.querySelectorAll('.rowCheck')).indexOf(checked[0]);
+  const row = data[editingIndex];
+
+  // ダイアログに値をセット
+  document.getElementById('mngNo').value = row.mngNo;
+  document.getElementById('toName').value = row.toName;
+  document.getElementById('amount1').value = row.amount1;
+  document.getElementById('amount2').value = row.amount2;
+  document.getElementById('amount3').value = row.amount3;
+  document.getElementById('note').value = row.note;
+
+  // 日付のセット（年のみ or 年月日）
+  funcRadioDate0_OnChange();
+
+  const date_0_input = document.getElementById('date_0_input');
+  const date_1_input = document.getElementById('date_1_input');
+
+  if (row.date.length === 4) 
+  {
+    radioDate1.checked = true;
+    
+    date_1_input.disabled = false;
+    date_1_input.value = row.date;
+    date_0_input.disabled = true;
+    date_0_input.value = null;
+
+  } else {
+
+    radioDate0.checked = true;
+
+    date_0_input.disabled = false;
+    date_0_input.value = row.date.replace(/\./g, "-");
+    date_1_input.disabled = true;
+    date_1_input.value = "";
+
+  }
+
+  document.getElementById('msg').textContent = "";
+  rowDialog.showModal();
+});
+
+
+window.addEventListener('keydown', (e) => {
+  // Ctrl + A
+  if (e.ctrlKey && e.key.toLowerCase() === 'a') {
+    e.preventDefault();
+
+    const rowChecks = document.querySelectorAll('.rowCheck');
+    rowChecks.forEach(cb => {
+      cb.checked = true;
+      cb.closest('tr').classList.add('selected');
+    });
+
+    checkAll.checked = true;
+    updateUndoRedoButtons();
+  }
+
+  // Ctrl + Z → Undo  
+  if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    undoBtn.click();
+  }
+
+  // Ctrl + Shift + Z → Redo
+  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    redoBtn.click();
+  }
+  
+  // Alt + ↑ で上へ移動
+  if (e.altKey && e.key === 'ArrowUp') {
+    e.preventDefault();
+
+    const sel = getSelectionState();
+    if (sel.count === 0 || !sel.continuous) return; // 非連続は移動不可
+    if (sel.start === 0) return; // 一番上は移動不可
+
+    pushUndo();
+
+    const moving = data.splice(sel.start, sel.count);
+    data.splice(sel.start - 1, 0, ...moving);
+
+    renderTable();
+
+    // 移動後も選択状態を維持
+    const checks = document.querySelectorAll('.rowCheck');
+    for (let i = 0; i < checks.length; i++) {
+      checks[i].checked = (i >= sel.start - 1 && i < sel.start - 1 + sel.count);
+      checks[i].closest('tr').classList.toggle('selected', checks[i].checked);
+    }
+
+    updateUndoRedoButtons();
+  }
+
+  // Alt + ↓ で下へ移動
+  if (e.altKey && e.key === 'ArrowDown') {
+    e.preventDefault();
+
+    const sel = getSelectionState();
+    if (sel.count === 0 || !sel.continuous) return; // 非連続は移動不可
+    if (sel.end === data.length - 1) return; // 一番下は移動不可
+
+    pushUndo();
+
+    const moving = data.splice(sel.start, sel.count);
+    data.splice(sel.start + 1, 0, ...moving);
+
+    renderTable();
+
+    // 移動後も選択状態を維持
+    const checks = document.querySelectorAll('.rowCheck');
+    for (let i = 0; i < checks.length; i++) {
+      checks[i].checked = (i >= sel.start + 1 && i < sel.start + 1 + sel.count);
+      checks[i].closest('tr').classList.toggle('selected', checks[i].checked);
+    }
+
+    updateUndoRedoButtons();
+  }
+  
+	// Esc キー処理（ダイアログ優先 → 選択解除）
+	if (e.key === 'Escape') {
+	  e.preventDefault();
+
+	  // 1. 開いているダイアログがあれば閉じる
+	  const openDialog = document.querySelector('dialog[open]');
+	  if (openDialog) {
+	    openDialog.close();
+	    return;
+	  }
+
+	  // 2. ダイアログが開いていない → 選択解除
+	  const rowChecks = document.querySelectorAll('.rowCheck');
+	  rowChecks.forEach(cb => {
+	    cb.checked = false;
+	    cb.closest('tr').classList.remove('selected');
+	  });
+
+	  checkAll.checked = false;
+	  updateUndoRedoButtons();
+	}
+});
+
+
+function getSelectedRange() {
+  const checks = Array.from(document.querySelectorAll('.rowCheck'));
+  const selected = checks
+    .map((cb, i) => cb.checked ? i : -1)
+    .filter(i => i !== -1);
+
+  if (selected.length === 0) return null;
+
+  const start = selected[0];
+  const end = selected[selected.length - 1];
+
+  // 連続しているか確認
+  for (let i = start; i <= end; i++) {
+    if (!checks[i].checked) return null; // 非連続
+  }
+
+  return { start, end };
+}function getSelectionState() {
+  const checks = Array.from(document.querySelectorAll('.rowCheck'));
+  const selected = checks
+    .map((cb, i) => cb.checked ? i : -1)
+    .filter(i => i !== -1);
+
+  if (selected.length === 0) {
+    return { count: 0, continuous: false, start: null, end: null };
+  }
+
+  const start = selected[0];
+  const end = selected[selected.length - 1];
+
+  let continuous = true;
+  for (let i = start; i <= end; i++) {
+    if (!checks[i].checked) {
+      continuous = false;
+      break;
+    }
+  }
+
+  return { count: selected.length, continuous, start, end };
+}
+
+function clearDropGuides() {
+  document.querySelectorAll('tr').forEach(tr => {
+    tr.classList.remove('drop-target-top', 'drop-target-bottom');
+  });
+}
+
+
+addSamaBtn.addEventListener('click', () => {
+  if (data.length === 0) return;
+
+  pushUndo();
+
+  data.forEach(row => {
+    if (!row.toName.endsWith("様")) {
+      row.toName = row.toName + " 様";
+    }
+  });
+
+  renderTable();
+  updateUndoRedoButtons();
+});
+
+</script>
+</body>
+</html>
